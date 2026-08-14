@@ -85,7 +85,7 @@ Keys and models can be changed later on **Settings**. That page writes `data/set
 
 Uploads, SQLite, settings, logs, and outputs live in `./data` on the host.
 
-On a VPS, put Caddy or nginx in front of port 8000. Church videos are large — raise the proxy body limit, for example nginx `client_max_body_size 4g;` or Caddy `request_body { max_size 4GB }`. Link jobs sidestep that limit entirely, since the server downloads the video itself.
+Production deploys to `hillsong-vps` from `ghcr.io/rfm-9300/hillsong-aggregator`. See [`DEPLOYMENT_RUNBOOK.md`](DEPLOYMENT_RUNBOOK.md). Church videos are large — raise the proxy body limit, for example nginx `client_max_body_size 4g;` or Caddy `request_body { max_size 4GB }`. Link jobs sidestep that limit entirely, since the server downloads the video itself.
 
 Optional link settings in `.env`: `YTDLP_FORMAT` to cap download quality, `YTDLP_COOKIES_FILE` for members-only videos. YouTube changes often, so rebuild now and then to pick up a newer `yt-dlp`.
 
