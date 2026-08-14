@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Jobs — Podcast aggregator{% endblock %}
+{% block content %}
+<div class="view__hero">
+  <h1 class="view__title">New extraction</h1>
+  <p class="view__desc">Paste a YouTube link or upload a recording. The worker finds the sermon and cuts the clip.</p>
+</div>
+
+<section class="panel">
+  <div class="panel__head">
+    <h2 class="panel__title">Source</h2>
+  </div>
+  <div class="panel__body">
+    {% if error %}
+    <p class="banner banner--bad">{{ error }}</p>
+    {% endif %}
+    <form class="form" action="/jobs" method="post" enctype="multipart/form-data">
+      <div class="form__row">
+        <label class="lbl" for="url">YouTube link</label>
+        <input class="inp" id="url" type="url" name="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
+      </div>
+      <p class="divider"><span>or</span></p>
+      <div class="form__row">
+        <label class="lbl" for="video">Upload a video</label>
+        <input class="inp" id="video" type="file" name="video" accept="video/*,.mp4,.mkv,.mov,.webm,.m4v,.avi">
+      </div>
+      <div class="form__grid">
+        <div class="form__row">
+          <label class="lbl" for="language">Language</label>
+          <input class="inp" id="language" type="text" name="language" placeholder="pt, en, …" autocomplete="off">
+        </div>
+        <div class="form__row">
+          <label class="lbl" for="transcript_source">Transcript source (links)</label>
+          <select class="sel" id="transcript_source" name="transcript_source">
+            <option value="auto" selected>Auto — reuse captions, else Whisper</option>
+            <option value="captions">Captions only — cheapest</option>
+            <option value="whisper">Whisper — ignore captions</option>
+          </select>
+        </div>
+        <div class="form__row">
+          <label class="lbl" for="pad_start">Pad start (s)</label>
+          <input class="inp inp--mono" id="pad_start" type="number" name="pad_start" value="2" min="0" step="0.5">
+        </div>
+        <div class="form__row">
+          <label class="lbl" for="pad_end">Pad end (s)</label>
+          <input class="inp inp--mono" id="pad_end" type="number" name="pad_end" value="5" min="0" step="0.5">
+        </div>
+      </div>
+      <label class="check">
+        <input type="checkbox" name="reencode" value="true">
+        <span>Re-encode for a frame-accurate cut (slower)</span>
+      </label>
+      <button class="btn btn--primary" type="submit">Queue job</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel__head">
+    <h2 class="panel__title">Jobs</h2>
+  </div>
+  {% if jobs %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Title</th>
+          <th>Source</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in jobs %}
+        <tr>
+          <td>
+            {% if job.status == "done" %}
+            <span class="pill pill--ok">{{ job.status }}</span>
+            {% elif job.status == "failed" %}
+            <span class="pill pill--bad">{{ job.status }}</span>
+            {% elif job.status == "running" %}
+            <span class="pill pill--warn">{{ job.status }}</span>
+            {% else %}
+            <span class="pill pill--info">{{ job.status }}</span>
+            {% endif %}
+          </td>
+          <td class="name"><a href="/jobs/{{ job.id }}">{{ job.display_title }}</a></td>
+          <td class="muted">{{ "link" if job.source_type == "url" else "upload" }}{% if job.transcript_used %} · {{ job.transcript_used }}{% endif %}</td>
+          <td class="muted mono">{{ job.created_label }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <p class="empty__title">No jobs yet</p>
+    <p class="empty__desc">Upload a service video to get started.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

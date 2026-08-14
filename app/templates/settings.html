@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Settings — Podcast aggregator{% endblock %}
+{% block content %}
+<div class="view__hero">
+  <h1 class="view__title">Platform settings</h1>
+  <p class="view__desc">Keys and models are saved on the data volume and applied immediately. The next job picks them up — no rebuild.</p>
+</div>
+
+{% if saved %}
+<p class="banner banner--ok">Saved. New jobs use these values. A job that is already running keeps the keys it started with.</p>
+{% endif %}
+{% if error %}
+<p class="banner banner--bad">{{ error }}</p>
+{% endif %}
+
+<section class="panel">
+  <div class="panel__head">
+    <h2 class="panel__title">Providers</h2>
+  </div>
+  <div class="panel__body">
+    <div class="row" style="flex-wrap: wrap; gap: 8px;">
+      {% for provider in providers %}
+        {% if provider.configured %}
+        <span class="pill pill--ok">{{ provider.name }}</span>
+        {% else %}
+        <span class="pill">{{ provider.name }}</span>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <p class="hint" style="margin: 12px 0 0;">Auto-detect prefers OpenRouter, then OpenAI, then the others. A green pill means a key is set (saved here or in the server env).</p>
+  </div>
+</section>
+
+<form class="form" action="/settings" method="post" autocomplete="off">
+  {% for group in groups %}
+  <section class="panel">
+    <div class="panel__head panel__head--stack">
+      <h2 class="panel__title">{{ group.title }}</h2>
+      <p class="muted" style="margin: 0; font-size: 13px; font-weight: 600;">{{ group.blurb }}</p>
+    </div>
+    <div class="panel__body">
+      <div class="form__grid">
+        {% for field in group.fields %}
+        <div class="form__row{% if field.kind == 'secret' %} form__row--full{% endif %}">
+          <label class="lbl" for="{{ field.key }}">
+            {{ field.label }}
+            {% if field.source == "saved" %}
+            <span class="pill pill--accent">saved</span>
+            {% elif field.source == "env" %}
+            <span class="pill pill--info">env</span>
+            {% endif %}
+          </label>
+          {% if field.kind == "secret" %}
+          <input
+            class="inp inp--mono"
+            id="{{ field.key }}"
+            type="password"
+            name="{{ field.key }}"
+            value=""
+            placeholder="{% if field.configured %}Leave blank to keep the current key{% else %}{{ field.placeholder }}{% endif %}"
+            autocomplete="new-password"
+          >
+          {% else %}
+          <input
+            class="inp inp--mono"
+            id="{{ field.key }}"
+            type="text"
+            name="{{ field.key }}"
+            value="{{ field.value }}"
+            placeholder="{{ field.placeholder }}"
+            autocomplete="off"
+          >
+          {% endif %}
+          {% if field.hint %}
+          <p class="hint">{{ field.hint }}</p>
+          {% elif field.kind == "secret" and field.configured %}
+          <p class="hint">A key is already set. Paste a new one only if you want to replace it.</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+  <button class="btn btn--primary" type="submit">Save settings</button>
+</form>
+{% endblock %}

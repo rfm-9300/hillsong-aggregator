@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}{{ job.display_title }} — Podcast aggregator{% endblock %}
+{% block refresh %}
+{% if job.is_active %}
+<meta http-equiv="refresh" content="3">
+{% endif %}
+{% endblock %}
+{% block content %}
+<p class="crumb"><a href="/">All jobs</a></p>
+
+<section class="panel">
+  <div class="panel__head panel__head--stack">
+    <div>
+      <h1 class="view__title">{{ job.display_title }}</h1>
+      <p class="muted">
+        {% if job.source_type == "url" %}
+        <a href="{{ job.source_url }}" rel="noreferrer noopener" target="_blank">{{ job.source_url }}</a>
+        {% else %}
+        {{ job.filename }}
+        {% endif %}
+        · {{ job.created_label }}
+      </p>
+    </div>
+    {% if job.status == "done" %}
+    <span class="pill pill--ok">{{ progress.status_label }}</span>
+    {% elif job.status == "failed" %}
+    <span class="pill pill--bad">{{ progress.status_label }}</span>
+    {% elif job.status == "running" %}
+    <span class="pill pill--warn">{{ progress.status_label }}</span>
+    {% else %}
+    <span class="pill pill--info">{{ progress.status_label }}</span>
+    {% endif %}
+  </div>
+  <div class="panel__body">
+    <div class="progress" aria-live="polite">
+      <div class="progress__head">
+        <div>
+          <p class="progress__headline">{{ progress.headline }}</p>
+          <p class="progress__detail">{{ progress.detail }}</p>
+        </div>
+        <p class="progress__pct mono" aria-hidden="true">{{ progress.percent }}%</p>
+      </div>
+      <div
+        class="progress__bar{% if job.is_active %} progress__bar--live{% endif %}{% if job.status == 'failed' %} progress__bar--bad{% elif job.status == 'done' %} progress__bar--ok{% endif %}"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="{{ progress.percent }}"
+        aria-label="{{ progress.headline }}"
+      >
+        <span class="progress__fill" style="--progress: {{ progress.percent }}%"></span>
+      </div>
+      <ol class="steps">
+        {% for step in progress.steps %}
+        <li class="steps__item steps__item--{{ step.state }}">
+          <span class="steps__marker" aria-hidden="true"></span>
+          <span class="steps__body">
+            <span class="steps__title">{{ step.title }}</span>
+            {% if step.state == "current" or step.state == "failed" %}
+            <span class="steps__detail">{{ step.detail }}</span>
+            {% endif %}
+          </span>
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    {% if job.error %}
+    <p class="banner banner--bad">{{ job.error }}</p>
+    {% endif %}
+
+    {% if job.status == "done" and job.output_exists %}
+    <div class="player-block">
+      <h2 class="section-title">Sermon clip</h2>
+      <video
+        class="player"
+        controls
+        playsinline
+        preload="metadata"
+        src="/jobs/{{ job.id }}/media"
+      >
+        Your browser cannot play this video.
+        <a href="/jobs/{{ job.id }}/download">Download it instead</a>.
+      </video>
+      <p class="row">
+        <a class="btn btn--primary" href="/jobs/{{ job.id }}/download">Download sermon clip</a>
+      </p>
+    </div>
+    {% elif job.is_active %}
+    <div class="player-block player-block--waiting">
+      <h2 class="section-title">Sermon clip</h2>
+      <div class="player-placeholder">
+        <p class="player-placeholder__title">Video will appear here</p>
+        <p class="player-placeholder__desc">When the cut finishes, you can watch it on this page.</p>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if job.window %}
+    <h2 class="section-title">What we found</h2>
+    <dl class="kv">
+      <div><dt>Sermon found</dt><dd>{{ "yes" if job.window.sermon_found else "not sure" }}</dd></div>
+      <div><dt>Starts</dt><dd class="mono">{{ job.window.start }}</dd></div>
+      <div><dt>Ends</dt><dd class="mono">{{ job.window.end }}</dd></div>
+      <div><dt>Length</dt><dd>{{ format_duration(job.window.duration_seconds) }}</dd></div>
+      <div><dt>Confidence</dt><dd>{{ format_confidence(job.window.confidence) }}</dd></div>
+    </dl>
+    {% if job.window.reasoning %}
+    <p class="hint">{{ job.window.reasoning }}</p>
+    {% endif %}
+    {% endif %}
+
+    <details class="details">
+      <summary class="details__summary">More details</summary>
+      <dl class="kv">
+        <div><dt>Language</dt><dd>{{ job.language or "auto" }}</dd></div>
+        <div>
+          <dt>Transcript</dt>
+          <dd>{{ job.transcript_used or job.transcript_source }}{% if job.transcript_used == "captions" %} (captions, no Whisper cost){% endif %}</dd>
+        </div>
+        <div><dt>Padding</dt><dd class="mono">{{ job.pad_start }}s before / {{ job.pad_end }}s after</dd></div>
+        <div><dt>Re-encode</dt><dd>{{ "yes" if job.reencode else "no" }}</dd></div>
+      </dl>
+    </details>
+  </div>
+</section>
+
+<details class="panel details-panel">
+  <summary class="panel__head details-panel__summary">
+    <span class="panel__title">Technical log</span>
+    <span class="muted">For troubleshooting</span>
+  </summary>
+  <div class="panel__body">
+    <pre class="log" id="job-log">{% if log %}{{ log }}{% else %}Waiting for worker output…{% endif %}</pre>
+  </div>
+</details>
+{% if job.is_active %}
+<script>
+(function () {
+  var path = location.pathname;
+  var pageKey = "job-page-scroll:" + path;
+  var logKey = "job-log-scroll:" + path;
+  var log = document.getElementById("job-log");
+  var savedPage = sessionStorage.getItem(pageKey);
+  if (savedPage !== null) {
+    window.scrollTo(0, Number(savedPage) || 0);
+  }
+
+  function nearBottom() {
+    return log.scrollHeight - log.scrollTop - log.clientHeight < 48;
+  }
+
+  function restoreLog() {
+    if (!log) return;
+    var saved = sessionStorage.getItem(logKey);
+    if (saved === null || saved === "bottom") {
+      log.scrollTop = log.scrollHeight;
+    } else {
+      log.scrollTop = Number(saved) || 0;
+    }
+  }
+
+  function persist() {
+    sessionStorage.setItem(pageKey, String(window.scrollY || 0));
+    if (log) {
+      sessionStorage.setItem(logKey, nearBottom() ? "bottom" : String(log.scrollTop));
+    }
+  }
+
+  restoreLog();
+  if (log) log.addEventListener("scroll", persist, { passive: true });
+  window.addEventListener("scroll", persist, { passive: true });
+  window.addEventListener("pagehide", persist);
+})();
+</script>
+{% endif %}
+{% endblock %}

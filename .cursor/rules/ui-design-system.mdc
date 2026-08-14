@@ -1,0 +1,16 @@
+---
+description: Follow the thebots.lab UI design system for the Extractor dashboard.
+globs: app/{templates,static}/**/*.{html,css,js}
+alwaysApply: false
+---
+
+# UI Design System
+
+Before changing HTML, CSS, or templates, read `design-system/AGENTS.md`.
+
+- One stylesheet: `app/static/style.css`. Theme: `app/static/theme.js`.
+- Use existing classes and tokens (`design-system/components.md`, `design-system/tokens.md`).
+- Compact shell: topbar + `.view`. No CRM sidebar.
+- Job status pills: queued `pill--info`, running `pill--warn`, done `pill--ok`, failed `pill--bad`.
+
+Do not hardcode colors or revive old classes (`.badge`, `.button`, `.shell`).

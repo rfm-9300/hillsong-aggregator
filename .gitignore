@@ -1,0 +1,15 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.work/
+output/
+data/
+*.mp4
+*.mp3
+*.wav
+*.m4a
+*.json
+!pyproject.toml
+.DS_Store
