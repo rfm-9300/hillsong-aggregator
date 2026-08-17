@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Edit — Podcast aggregator{% endblock %}
+{% block content %}
+<div class="view__hero">
+  <h1 class="view__title">Edit package</h1>
+  <p class="view__desc">Choose an intro and an ending. New jobs stitch them onto the sermon cut automatically.</p>
+</div>
+
+{% if error %}
+<p class="banner banner--bad">{{ error }}</p>
+{% endif %}
+
+<section class="panel">
+  <div class="panel__head">
+    <h2 class="panel__title">Active package</h2>
+  </div>
+  <div class="panel__body">
+    <dl class="kv">
+      <div>
+        <dt>Intro</dt>
+        <dd>{% if edit.active_intro %}{{ edit.active_intro.display_title }}{% else %}None{% endif %}</dd>
+      </div>
+      <div>
+        <dt>Ending</dt>
+        <dd>{% if edit.active_outro %}{{ edit.active_outro.display_title }}{% else %}None{% endif %}</dd>
+      </div>
+    </dl>
+    <p class="hint">Final video order: intro → sermon → ending. Leave either side empty to skip it. Already-finished jobs can be rebuilt from the job page.</p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel__head">
+    <h2 class="panel__title">Intro</h2>
+  </div>
+  <div class="panel__body">
+    <form class="form" action="/edit/upload" method="post" enctype="multipart/form-data">
+      <input type="hidden" name="kind" value="intro">
+      <div class="form__grid">
+        <div class="form__row">
+          <label class="lbl" for="intro-title">Name</label>
+          <input class="inp" id="intro-title" type="text" name="title" placeholder="Church intro" autocomplete="off">
+        </div>
+        <div class="form__row">
+          <label class="lbl" for="intro-video">Video file</label>
+          <div class="file">
+            <input class="file__input" id="intro-video" type="file" name="video" accept="video/*,.mp4,.mkv,.mov,.webm,.m4v,.avi" required>
+            <div class="file__ui" aria-hidden="true">
+              <span class="file__btn">Choose file</span>
+              <span class="file__name" data-file-name>No file chosen</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn--primary" type="submit">Upload intro</button>
+    </form>
+
+    {% if intros %}
+    <div class="asset-list">
+      {% for asset in intros %}
+      <article class="asset{% if edit.active_intro_id == asset.id %} asset--active{% endif %}">
+        <video class="player player--asset" controls playsinline preload="metadata" src="/assets/{{ asset.id }}/media"></video>
+        <div class="asset__meta">
+          <p class="asset__title">{{ asset.display_title }}</p>
+          <p class="muted">{{ asset.filename }}</p>
+          <div class="row">
+            {% if edit.active_intro_id == asset.id %}
+            <span class="pill pill--ok">Selected</span>
+            <form action="/edit/select" method="post">
+              <input type="hidden" name="kind" value="intro">
+              <input type="hidden" name="asset_id" value="">
+              <button class="btn btn--ghost btn--sm" type="submit">Clear</button>
+            </form>
+            {% else %}
+            <form action="/edit/select" method="post">
+              <input type="hidden" name="kind" value="intro">
+              <input type="hidden" name="asset_id" value="{{ asset.id }}">
+              <button class="btn btn--primary btn--sm" type="submit">Use as intro</button>
+            </form>
+            {% endif %}
+            <form action="/edit/delete" method="post" onsubmit="return confirm('Delete this intro clip?');">
+              <input type="hidden" name="asset_id" value="{{ asset.id }}">
+              <button class="btn btn--danger btn--sm" type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">
+      <p class="empty__title">No intro yet</p>
+      <p class="empty__desc">Upload a short branding clip to play before the sermon.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel__head">
+    <h2 class="panel__title">Ending</h2>
+  </div>
+  <div class="panel__body">
+    <form class="form" action="/edit/upload" method="post" enctype="multipart/form-data">
+      <input type="hidden" name="kind" value="outro">
+      <div class="form__grid">
+        <div class="form__row">
+          <label class="lbl" for="outro-title">Name</label>
+          <input class="inp" id="outro-title" type="text" name="title" placeholder="Church ending" autocomplete="off">
+        </div>
+        <div class="form__row">
+          <label class="lbl" for="outro-video">Video file</label>
+          <div class="file">
+            <input class="file__input" id="outro-video" type="file" name="video" accept="video/*,.mp4,.mkv,.mov,.webm,.m4v,.avi" required>
+            <div class="file__ui" aria-hidden="true">
+              <span class="file__btn">Choose file</span>
+              <span class="file__name" data-file-name>No file chosen</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn--primary" type="submit">Upload ending</button>
+    </form>
+
+    {% if outros %}
+    <div class="asset-list">
+      {% for asset in outros %}
+      <article class="asset{% if edit.active_outro_id == asset.id %} asset--active{% endif %}">
+        <video class="player player--asset" controls playsinline preload="metadata" src="/assets/{{ asset.id }}/media"></video>
+        <div class="asset__meta">
+          <p class="asset__title">{{ asset.display_title }}</p>
+          <p class="muted">{{ asset.filename }}</p>
+          <div class="row">
+            {% if edit.active_outro_id == asset.id %}
+            <span class="pill pill--ok">Selected</span>
+            <form action="/edit/select" method="post">
+              <input type="hidden" name="kind" value="outro">
+              <input type="hidden" name="asset_id" value="">
+              <button class="btn btn--ghost btn--sm" type="submit">Clear</button>
+            </form>
+            {% else %}
+            <form action="/edit/select" method="post">
+              <input type="hidden" name="kind" value="outro">
+              <input type="hidden" name="asset_id" value="{{ asset.id }}">
+              <button class="btn btn--primary btn--sm" type="submit">Use as ending</button>
+            </form>
+            {% endif %}
+            <form action="/edit/delete" method="post" onsubmit="return confirm('Delete this ending clip?');">
+              <input type="hidden" name="asset_id" value="{{ asset.id }}">
+              <button class="btn btn--danger btn--sm" type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">
+      <p class="empty__title">No ending yet</p>
+      <p class="empty__desc">Upload a short closing clip to play after the sermon.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

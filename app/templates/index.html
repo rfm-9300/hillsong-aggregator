@@ -14,28 +14,44 @@
     {% if error %}
     <p class="banner banner--bad">{{ error }}</p>
     {% endif %}
-    <form class="form" action="/jobs" method="post" enctype="multipart/form-data">
-      <div class="form__row">
-        <label class="lbl" for="url">YouTube link</label>
-        <input class="inp" id="url" type="url" name="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
-      </div>
-      <p class="divider"><span>or</span></p>
-      <div class="form__row">
-        <label class="lbl" for="video">Upload a video</label>
-        <input class="inp" id="video" type="file" name="video" accept="video/*,.mp4,.mkv,.mov,.webm,.m4v,.avi">
+    <form class="form" id="new-job" action="/jobs" method="post" enctype="multipart/form-data">
+      <div class="tabs" data-tabs>
+        <div class="tabs__list" role="tablist" aria-label="Source">
+          <button class="tabs__tab" type="button" role="tab" id="tab-url" aria-controls="panel-url" aria-selected="true" data-tab="url">YouTube link</button>
+          <button class="tabs__tab" type="button" role="tab" id="tab-upload" aria-controls="panel-upload" aria-selected="false" data-tab="upload">Upload</button>
+        </div>
+        <div class="tabs__panel" role="tabpanel" id="panel-url" aria-labelledby="tab-url" data-panel="url">
+          <div class="form__row">
+            <label class="lbl" for="url">YouTube link</label>
+            <input class="inp" id="url" type="url" name="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
+          </div>
+          <div class="form__row">
+            <label class="lbl" for="transcript_source">Transcript source</label>
+            <select class="sel" id="transcript_source" name="transcript_source">
+              <option value="auto" selected>Auto — reuse captions, else Whisper</option>
+              <option value="captions">Captions only — cheapest</option>
+              <option value="whisper">Whisper — ignore captions</option>
+            </select>
+          </div>
+        </div>
+        <div class="tabs__panel" role="tabpanel" id="panel-upload" aria-labelledby="tab-upload" data-panel="upload" hidden>
+          <div class="form__row">
+            <label class="lbl" for="video">Upload a video</label>
+            <div class="file">
+              <input class="file__input" id="video" type="file" name="video" accept="video/*,.mp4,.mkv,.mov,.webm,.m4v,.avi">
+              <div class="file__ui" aria-hidden="true">
+                <span class="file__btn">Choose file</span>
+                <span class="file__name" data-file-name>No file chosen</span>
+              </div>
+            </div>
+          </div>
+          <p class="hint">Uploads are transcribed with Whisper (no YouTube captions).</p>
+        </div>
       </div>
       <div class="form__grid">
         <div class="form__row">
           <label class="lbl" for="language">Language</label>
           <input class="inp" id="language" type="text" name="language" placeholder="pt, en, …" autocomplete="off">
-        </div>
-        <div class="form__row">
-          <label class="lbl" for="transcript_source">Transcript source (links)</label>
-          <select class="sel" id="transcript_source" name="transcript_source">
-            <option value="auto" selected>Auto — reuse captions, else Whisper</option>
-            <option value="captions">Captions only — cheapest</option>
-            <option value="whisper">Whisper — ignore captions</option>
-          </select>
         </div>
         <div class="form__row">
           <label class="lbl" for="pad_start">Pad start (s)</label>
@@ -52,6 +68,67 @@
       </label>
       <button class="btn btn--primary" type="submit">Queue job</button>
     </form>
+    <script>
+    (function () {
+      var root = document.querySelector("[data-tabs]");
+      var form = document.getElementById("new-job");
+      if (!root || !form) return;
+      var tabs = Array.prototype.slice.call(root.querySelectorAll("[data-tab]"));
+      var panels = Array.prototype.slice.call(root.querySelectorAll("[data-panel]"));
+      var url = document.getElementById("url");
+      var video = document.getElementById("video");
+      var transcript = document.getElementById("transcript_source");
+
+      function resetFileLabel(input) {
+        if (!input) return;
+        var label = input.closest(".file") && input.closest(".file").querySelector("[data-file-name]");
+        if (!label) return;
+        label.textContent = "No file chosen";
+        label.classList.remove("file__name--set");
+      }
+
+      function select(name) {
+        tabs.forEach(function (tab) {
+          var on = tab.getAttribute("data-tab") === name;
+          tab.setAttribute("aria-selected", on ? "true" : "false");
+          tab.tabIndex = on ? 0 : -1;
+        });
+        panels.forEach(function (panel) {
+          panel.hidden = panel.getAttribute("data-panel") !== name;
+        });
+        if (name === "url") {
+          if (video) {
+            video.value = "";
+            resetFileLabel(video);
+          }
+        } else if (url) {
+          url.value = "";
+        }
+      }
+
+      tabs.forEach(function (tab) {
+        tab.addEventListener("click", function () {
+          select(tab.getAttribute("data-tab"));
+        });
+      });
+
+      form.addEventListener("submit", function () {
+        var active = root.querySelector('[aria-selected="true"]');
+        var name = active ? active.getAttribute("data-tab") : "url";
+        if (name === "url") {
+          if (video) {
+            video.value = "";
+            resetFileLabel(video);
+          }
+        } else {
+          if (url) url.value = "";
+          if (transcript) transcript.value = "whisper";
+        }
+      });
+
+      select("url");
+    })();
+    </script>
   </div>
 </section>
 

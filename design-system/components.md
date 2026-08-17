@@ -14,12 +14,28 @@ Class names as implemented in `app/static/style.css`. Copy these. Strings in exa
     </span>
   </a>
   <div class="topbar__actions">
+    <a class="btn btn--ghost btn--sm" href="/">Jobs</a>
+    <a class="btn btn--ghost btn--sm" href="/edit">Edit</a>
+    <a class="btn btn--ghost btn--sm" href="/settings">Settings</a>
     <button class="iconbtn iconbtn--theme" id="btn-theme" type="button" aria-label="Toggle theme">🌙</button>
   </div>
 </header>
 ```
 
 Theme button **must** keep `id="btn-theme"` — `theme.js` binds to it.
+
+## Asset cards (Edit)
+
+```html
+<article class="asset asset--active">
+  <video class="player player--asset" controls playsinline preload="metadata" src="/assets/id/media"></video>
+  <div class="asset__meta">
+    <p class="asset__title">Church intro</p>
+    <p class="muted">intro.mp4</p>
+    <div class="row">…</div>
+  </div>
+</article>
+```
 
 ## Buttons
 
@@ -146,19 +162,18 @@ Modifiers: `.progress__bar--live` (active job), `--ok`, `--bad`. Step states: `-
 
 ```html
 <form class="form">
-  <div class="form__row">
-    <label class="lbl" for="url">YouTube link</label>
-    <input class="inp" id="url" type="url" name="url">
+  <div class="tabs" data-tabs>
+    <div class="tabs__list" role="tablist" aria-label="Source">
+      <button class="tabs__tab" type="button" role="tab" aria-selected="true">YouTube link</button>
+      <button class="tabs__tab" type="button" role="tab" aria-selected="false">Upload</button>
+    </div>
+    <div class="tabs__panel" role="tabpanel">…</div>
+    <div class="tabs__panel" role="tabpanel" hidden>…</div>
   </div>
-  <p class="divider"><span>or</span></p>
   <div class="form__grid">
     <div class="form__row">
       <label class="lbl" for="language">Language</label>
       <input class="inp" id="language" name="language">
-    </div>
-    <div class="form__row">
-      <label class="lbl" for="source">Transcript</label>
-      <select class="sel" id="source" name="transcript_source">…</select>
     </div>
   </div>
   <label class="check">
@@ -169,7 +184,39 @@ Modifiers: `.progress__bar--live` (active job), `--ok`, `--bad`. Step states: `-
 </form>
 ```
 
-Numeric fields: `.inp--mono`. Helper text: `.hint`.
+Source choice on the list page uses `.tabs` (YouTube vs Upload), not a divider. Inactive tab fields are cleared before submit.
+
+Numeric fields: `.inp--mono`. Helper / reasoning text: `.hint` (uses `--ink-2`, not `--ink-mute`, so longer copy stays readable). Key/value labels (`.kv dt`) also use `--ink-2`.
+
+## File picker
+
+Do not put `type="file"` on `.inp` — the native Choose file control breaks alignment. Use `.file`:
+
+```html
+<div class="file">
+  <input class="file__input" id="video" type="file" name="video" accept="video/*">
+  <div class="file__ui" aria-hidden="true">
+    <span class="file__btn">Choose file</span>
+    <span class="file__name" data-file-name>No file chosen</span>
+  </div>
+</div>
+```
+
+`theme.js` updates `[data-file-name]` when a file is chosen. Height, border, radius, and focus ring match `.inp`.
+
+## Tabs
+
+```html
+<div class="tabs" data-tabs>
+  <div class="tabs__list" role="tablist" aria-label="Source">
+    <button class="tabs__tab" type="button" role="tab" aria-selected="true">YouTube link</button>
+    <button class="tabs__tab" type="button" role="tab" aria-selected="false">Upload</button>
+  </div>
+  <div class="tabs__panel" role="tabpanel">…</div>
+</div>
+```
+
+Selected tab: `aria-selected="true"`. Hide inactive panels with the `hidden` attribute.
 
 ## Key/value (job meta)
 

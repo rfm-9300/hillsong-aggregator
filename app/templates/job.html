@@ -71,7 +71,17 @@
 
     {% if job.status == "done" and job.output_exists %}
     <div class="player-block">
-      <h2 class="section-title">Sermon clip</h2>
+      <h2 class="section-title">Final video</h2>
+      {% if job.is_packaged %}
+      <p class="hint">
+        Packaged with
+        {% if job.package.intro_title %}intro “{{ job.package.intro_title }}”{% endif %}
+        {% if job.package.intro_title and job.package.outro_title %} and {% endif %}
+        {% if job.package.outro_title %}ending “{{ job.package.outro_title }}”{% endif %}.
+      </p>
+      {% else %}
+      <p class="hint">Sermon cut only — no intro/ending was selected on <a href="/edit">Edit</a> when this finished.</p>
+      {% endif %}
       <video
         class="player"
         controls
@@ -83,15 +93,32 @@
         <a href="/jobs/{{ job.id }}/download">Download it instead</a>.
       </video>
       <p class="row">
-        <a class="btn btn--primary" href="/jobs/{{ job.id }}/download">Download sermon clip</a>
+        <a class="btn btn--primary" href="/jobs/{{ job.id }}/download">Download final video</a>
+        {% if can_repackage %}
+        <form action="/jobs/{{ job.id }}/repackage" method="post">
+          <button class="btn btn--ghost" type="submit">Rebuild with current intro &amp; ending</button>
+        </form>
+        {% endif %}
+        <a class="btn btn--ghost" href="/edit">Manage intro &amp; ending</a>
+      </p>
+    </div>
+    {% elif job.status == "failed" and can_repackage %}
+    <div class="player-block">
+      <h2 class="section-title">Final video</h2>
+      <p class="hint">The sermon cut is on disk, but packaging did not finish. Rebuild to add the current intro and ending.</p>
+      <p class="row">
+        <form action="/jobs/{{ job.id }}/repackage" method="post">
+          <button class="btn btn--primary" type="submit">Rebuild with current intro &amp; ending</button>
+        </form>
+        <a class="btn btn--ghost" href="/edit">Manage intro &amp; ending</a>
       </p>
     </div>
     {% elif job.is_active %}
     <div class="player-block player-block--waiting">
-      <h2 class="section-title">Sermon clip</h2>
+      <h2 class="section-title">Final video</h2>
       <div class="player-placeholder">
         <p class="player-placeholder__title">Video will appear here</p>
-        <p class="player-placeholder__desc">When the cut finishes, you can watch it on this page.</p>
+        <p class="player-placeholder__desc">When the cut finishes, intro and ending from Edit are added automatically.</p>
       </div>
     </div>
     {% endif %}
@@ -125,7 +152,7 @@
   </div>
 </section>
 
-<details class="panel details-panel">
+<details class="panel details-panel" id="tech-log">
   <summary class="panel__head details-panel__summary">
     <span class="panel__title">Technical log</span>
     <span class="muted">For troubleshooting</span>
@@ -134,16 +161,38 @@
     <pre class="log" id="job-log">{% if log %}{{ log }}{% else %}Waiting for worker output…{% endif %}</pre>
   </div>
 </details>
-{% if job.is_active %}
 <script>
 (function () {
   var path = location.pathname;
   var pageKey = "job-page-scroll:" + path;
   var logKey = "job-log-scroll:" + path;
+  var detailsKey = "job-details-open:" + path;
   var log = document.getElementById("job-log");
+  var techLog = document.getElementById("tech-log");
+  var moreDetails = document.querySelector("details.details");
   var savedPage = sessionStorage.getItem(pageKey);
   if (savedPage !== null) {
     window.scrollTo(0, Number(savedPage) || 0);
+  }
+
+  function restoreDetails() {
+    var raw = sessionStorage.getItem(detailsKey);
+    if (!raw) return;
+    try {
+      var state = JSON.parse(raw);
+      if (techLog && state.techLog) techLog.open = true;
+      if (moreDetails && state.moreDetails) moreDetails.open = true;
+    } catch (err) {}
+  }
+
+  function persistDetails() {
+    sessionStorage.setItem(
+      detailsKey,
+      JSON.stringify({
+        techLog: !!(techLog && techLog.open),
+        moreDetails: !!(moreDetails && moreDetails.open),
+      })
+    );
   }
 
   function nearBottom() {
@@ -165,13 +214,16 @@
     if (log) {
       sessionStorage.setItem(logKey, nearBottom() ? "bottom" : String(log.scrollTop));
     }
+    persistDetails();
   }
 
+  restoreDetails();
   restoreLog();
+  if (techLog) techLog.addEventListener("toggle", persistDetails);
+  if (moreDetails) moreDetails.addEventListener("toggle", persistDetails);
   if (log) log.addEventListener("scroll", persist, { passive: true });
   window.addEventListener("scroll", persist, { passive: true });
   window.addEventListener("pagehide", persist);
 })();
 </script>
-{% endif %}
 {% endblock %}

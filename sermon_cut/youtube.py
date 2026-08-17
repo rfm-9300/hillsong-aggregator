@@ -143,7 +143,10 @@ def fetch_captions(remote: RemoteVideo, dest_dir: Path, track: CaptionTrack) -> 
 def download_video(remote: RemoteVideo, dest_dir: Path) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
     fmt = os.environ.get(
-        "YTDLP_FORMAT", "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b"
+        "YTDLP_FORMAT",
+        "bv*[vcodec^=avc1][height<=1080]+ba[acodec^=mp4a]/"
+        "bv*[vcodec^=avc1][height<=1080]+ba/"
+        "b[ext=mp4][height<=1080]/b",
     )
     _stream(
         [

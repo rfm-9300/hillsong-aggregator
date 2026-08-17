@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import shutil
 import sys
 import time
 import traceback
 from contextlib import contextmanager
 from pathlib import Path
 
+from app.assets import active_package_paths
 from app.config import OUTPUTS_DIR, WORK_DIR, WORKER_POLL_SECONDS, ensure_dirs
 from app.settings import apply as apply_settings
 from app.jobs import (
@@ -14,8 +16,9 @@ from app.jobs import (
     log_path,
     mark_done,
     mark_failed,
-    requeue_stale_running,
+    recover_stale_running,
 )
+from sermon_cut.media import package_sermon
 from sermon_cut.pipeline import RunConfig, run
 
 
@@ -46,7 +49,8 @@ def _capture_logs(path: Path):
 
 
 def process_job(job) -> None:
-    output = OUTPUTS_DIR / f"{job.id}.mp4"
+    sermon_out = OUTPUTS_DIR / f"{job.id}_sermon.mp4"
+    final_out = OUTPUTS_DIR / f"{job.id}.mp4"
     work = WORK_DIR / job.id
     log = log_path(job.id)
 
@@ -63,7 +67,7 @@ def process_job(job) -> None:
             RunConfig(
                 video=video,
                 url=job.source_url if job.source_type == "url" else None,
-                output=output,
+                output=sermon_out,
                 language=job.language or None,
                 transcript_source=job.transcript_source,
                 pad_start=job.pad_start,
@@ -74,15 +78,43 @@ def process_job(job) -> None:
             )
         )
 
-    if result.output is None:
-        raise RuntimeError("Pipeline finished without an output file")
+        if result.output is None:
+            raise RuntimeError("Pipeline finished without an output file")
+
+        intro, outro, package_meta = active_package_paths()
+        output = final_out
+        package = None
+        if intro or outro:
+            labels = []
+            if intro:
+                labels.append(f"intro={package_meta.get('intro_title') or intro.name}")
+            if outro:
+                labels.append(f"ending={package_meta.get('outro_title') or outro.name}")
+            print(f"Packaging final video ({', '.join(labels)})…")
+            try:
+                package_sermon(result.output, final_out, intro=intro, outro=outro)
+                print(f"Wrote packaged video {final_out}")
+                package = package_meta
+            except Exception as package_exc:
+                print(f"Packaging failed: {package_exc}")
+                print("Keeping the sermon cut as the final video.")
+                if result.output.resolve() != final_out.resolve():
+                    shutil.copy2(result.output, final_out)
+                package = None
+        else:
+            print("No intro/ending selected on Edit; using sermon cut as final video.")
+            if result.output.resolve() != final_out.resolve():
+                shutil.copy2(result.output, final_out)
+
     title = (result.window.title or "").strip() or result.source_title
     mark_done(
         job.id,
         window=result.window.as_dict(),
-        output_path=result.output,
+        output_path=output,
+        sermon_path=result.output,
         title=title,
         transcript_used=result.transcript_source,
+        package=package,
     )
 
 
@@ -90,9 +122,14 @@ def main() -> None:
     ensure_dirs()
     init_db()
     apply_settings()
-    reset = requeue_stale_running()
-    if reset:
-        print(f"Requeued {reset} job(s) left running after a restart")
+    requeued, interrupted = recover_stale_running()
+    if requeued:
+        print(f"Requeued {requeued} job(s) left running after a restart")
+    if interrupted:
+        print(
+            f"Marked {interrupted} job(s) interrupted during packaging "
+            "(sermon cut kept — use Rebuild on the job page)"
+        )
     print("Worker waiting for jobs…")
     while True:
         job = claim_next_job()

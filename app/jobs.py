@@ -33,7 +33,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     finished_at TEXT,
     error TEXT,
     window_json TEXT,
-    output_path TEXT
+    output_path TEXT,
+    sermon_path TEXT,
+    package_json TEXT
 )
 """
 
@@ -57,6 +59,8 @@ COLUMNS = (
     "error",
     "window_json",
     "output_path",
+    "sermon_path",
+    "package_json",
 )
 
 # The first schema only handled uploads, under a different column name.
@@ -121,9 +125,12 @@ class Job:
     error: str | None
     window_json: str | None
     output_path: str | None
+    sermon_path: str | None
+    package_json: str | None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Job":
+        keys = set(row.keys())
         return cls(
             id=row["id"],
             status=row["status"],
@@ -144,6 +151,8 @@ class Job:
             error=row["error"],
             window_json=row["window_json"],
             output_path=row["output_path"],
+            sermon_path=row["sermon_path"] if "sermon_path" in keys else None,
+            package_json=row["package_json"] if "package_json" in keys else None,
         )
 
     @property
@@ -170,12 +179,37 @@ class Job:
         return data if isinstance(data, dict) else None
 
     @property
+    def package(self) -> dict[str, Any] | None:
+        if not self.package_json:
+            return None
+        try:
+            data = json.loads(self.package_json)
+        except json.JSONDecodeError:
+            return None
+        return data if isinstance(data, dict) else None
+
+    @property
+    def is_packaged(self) -> bool:
+        pkg = self.package or {}
+        return bool(pkg.get("intro_id") or pkg.get("outro_id"))
+
+    @property
     def is_active(self) -> bool:
         return self.status in {"queued", "running"}
 
     @property
     def output_exists(self) -> bool:
         return bool(self.output_path) and Path(self.output_path).is_file()
+
+    @property
+    def sermon_exists(self) -> bool:
+        path = self.sermon_path or self.output_path
+        return bool(path) and Path(path).is_file()
+
+    @property
+    def sermon_file(self) -> Path | None:
+        path = self.sermon_path or self.output_path
+        return Path(path) if path and Path(path).is_file() else None
 
     @property
     def download_name(self) -> str:
@@ -279,6 +313,8 @@ def mark_done(
     output_path: Path,
     title: str | None,
     transcript_used: str | None = None,
+    sermon_path: Path | None = None,
+    package: dict[str, Any] | None = None,
 ) -> None:
     with connect() as conn:
         conn.execute(
@@ -288,6 +324,8 @@ def mark_done(
                 finished_at = ?,
                 window_json = ?,
                 output_path = ?,
+                sermon_path = ?,
+                package_json = ?,
                 title = COALESCE(?, title),
                 transcript_used = ?,
                 error = NULL
@@ -297,11 +335,77 @@ def mark_done(
                 _utc_now(),
                 json.dumps(window, ensure_ascii=False),
                 str(output_path),
+                str(sermon_path) if sermon_path else str(output_path),
+                json.dumps(package, ensure_ascii=False) if package else None,
                 title,
                 transcript_used,
                 job_id,
             ),
         )
+
+
+def mark_running(job_id: str, *, note: str | None = None) -> None:
+    with connect() as conn:
+        conn.execute(
+            """
+            UPDATE jobs
+            SET status = 'running',
+                started_at = COALESCE(started_at, ?),
+                error = NULL
+            WHERE id = ?
+            """,
+            (_utc_now(), job_id),
+        )
+    if note:
+        path = log_path(job_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(f"\n{note.rstrip()}\n")
+
+
+def update_package(
+    job_id: str,
+    *,
+    output_path: Path,
+    package: dict[str, Any] | None,
+    sermon_path: Path | None = None,
+    mark_done_status: bool = False,
+) -> None:
+    with connect() as conn:
+        if mark_done_status:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status = 'done',
+                    finished_at = COALESCE(finished_at, ?),
+                    output_path = ?,
+                    sermon_path = COALESCE(?, sermon_path),
+                    package_json = ?,
+                    error = NULL
+                WHERE id = ?
+                """,
+                (
+                    _utc_now(),
+                    str(output_path),
+                    str(sermon_path) if sermon_path else None,
+                    json.dumps(package, ensure_ascii=False) if package else None,
+                    job_id,
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET output_path = ?,
+                    package_json = ?
+                WHERE id = ?
+                """,
+                (
+                    str(output_path),
+                    json.dumps(package, ensure_ascii=False) if package else None,
+                    job_id,
+                ),
+            )
 
 
 def mark_failed(job_id: str, error: str) -> None:
@@ -318,15 +422,52 @@ def mark_failed(job_id: str, error: str) -> None:
 
 def requeue_stale_running() -> int:
     """Any 'running' job belongs to a dead worker after a restart."""
+    requeued, _interrupted = recover_stale_running()
+    return requeued
+
+
+def recover_stale_running() -> tuple[int, int]:
+    """Recover jobs left `running` after a worker restart.
+
+    Returns (requeued_count, packaging_interrupted_count).
+
+    If `{id}_sermon.mp4` already exists, packaging was interrupted — mark the job
+    failed so the user can Rebuild without re-downloading the source.
+    """
+    from app.config import OUTPUTS_DIR
+
+    requeued = 0
+    interrupted = 0
     with connect() as conn:
-        cur = conn.execute(
-            """
-            UPDATE jobs
-            SET status = 'queued', started_at = NULL
-            WHERE status = 'running'
-            """
-        )
-        return cur.rowcount
+        rows = conn.execute("SELECT id FROM jobs WHERE status = 'running'").fetchall()
+    for row in rows:
+        job_id = row["id"]
+        sermon = OUTPUTS_DIR / f"{job_id}_sermon.mp4"
+        if sermon.is_file():
+            mark_failed(
+                job_id,
+                "Worker stopped while adding intro/ending. Open the job and click Rebuild.",
+            )
+            log = log_path(job_id)
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with log.open("a", encoding="utf-8") as handle:
+                handle.write(
+                    "\nerror: worker restarted during packaging; "
+                    "sermon cut kept — use Rebuild on the job page.\n"
+                )
+            interrupted += 1
+        else:
+            with connect() as conn:
+                conn.execute(
+                    """
+                    UPDATE jobs
+                    SET status = 'queued', started_at = NULL
+                    WHERE id = ? AND status = 'running'
+                    """,
+                    (job_id,),
+                )
+            requeued += 1
+    return requeued, interrupted
 
 
 def log_path(job_id: str) -> Path:

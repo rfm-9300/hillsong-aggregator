@@ -40,6 +40,11 @@ STEPS: tuple[dict[str, str], ...] = (
         "detail": "Trimming the video to just the sermon.",
     },
     {
+        "id": "package",
+        "title": "Adding intro & ending",
+        "detail": "Joining your branding clips onto the sermon. Long sermons can take a few minutes.",
+    },
+    {
         "id": "ready",
         "title": "Ready to watch",
         "detail": "Your sermon clip is ready.",
@@ -62,6 +67,13 @@ _LOG_MARKERS: tuple[tuple[str, int], ...] = (
     ("detecting sermon", 3),
     ("cutting ", 4),
     ("wrote ", 4),
+    ("packaging final", 5),
+    ("rebuild requested", 5),
+    ("re-encoding sermon", 5),
+    ("normalizing ", 5),
+    ("joining intro", 5),
+    ("wrote packaged", 5),
+    ("no intro/ending", 5),
 )
 
 

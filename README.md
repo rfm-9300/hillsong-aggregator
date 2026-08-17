@@ -70,6 +70,8 @@ python3 extract_sermon.py "https://www.youtube.com/watch?v=…" --transcript-sou
 
 The FastAPI dashboard is a private admin UI: paste a YouTube link or upload a service video, watch job status, download the cut sermon. A worker runs jobs one at a time. The job page shows which transcript source was used, so you can see when a run cost nothing but the text LLM call.
 
+On **Edit**, upload intro and ending clips and select which ones are active. When a job finishes, the worker stitches `intro → sermon → ending` into the final downloadable video. You can rebuild an older job with the current branding from the job page.
+
 The dashboard UI follows [`design-system/`](design-system/README.md) (same thebots.lab tokens and classes as WhatsApp-bot). Light/dark toggle is in the top bar.
 
 1. Copy `.env.example` to `.env` and set `OPENROUTER_API_KEY`, `DASHBOARD_USER`, and `DASHBOARD_PASSWORD`.
@@ -87,7 +89,7 @@ Uploads, SQLite, settings, logs, and outputs live in `./data` on the host.
 
 Production deploys to `hillsong-vps` from `ghcr.io/rfm-9300/hillsong-aggregator`. See [`DEPLOYMENT_RUNBOOK.md`](DEPLOYMENT_RUNBOOK.md). Church videos are large — raise the proxy body limit, for example nginx `client_max_body_size 4g;` or Caddy `request_body { max_size 4GB }`. Link jobs sidestep that limit entirely, since the server downloads the video itself.
 
-Optional link settings in `.env`: `YTDLP_FORMAT` to cap download quality, `YTDLP_COOKIES_FILE` for members-only videos. YouTube changes often, so rebuild now and then to pick up a newer `yt-dlp`.
+Optional link settings in `.env`: `YTDLP_FORMAT` to prefer H.264/AAC up to 1080p (keeps intro/ending packaging fast; AV1 downloads are slow to re-encode), `YTDLP_COOKIES_FILE` for members-only videos. YouTube changes often, so rebuild now and then to pick up a newer `yt-dlp`.
 
 Locally without Docker:
 

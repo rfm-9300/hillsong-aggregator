@@ -8,10 +8,10 @@ Extractor has two pages (jobs list, job detail). Do not add a sidebar.
 body
   header.topbar
     a.brand
-    .topbar__actions  (#btn-theme)
+    .topbar__actions  (Jobs, Edit, Settings, #btn-theme)
   main.view
     (crumb on detail)
-    .view__hero (list page)
+    .view__hero (list / edit / settings)
     section.panel …
 ```
 
@@ -24,11 +24,19 @@ Head assets in `base.html` (order matters):
 ## List + create (index)
 
 1. `.view__hero` with title + description
-2. `.panel` “Source” containing `.form`
+2. `.panel` “Source” containing `.form` with `.tabs` (YouTube link | Upload)
 3. Errors as `.banner.banner--bad` inside the form panel
 4. `.panel` “Jobs” with `.tbl` or `.empty`
 
 Create stays **on the list page**, not in a drawer.
+
+## Edit package
+
+1. `.view__hero` explaining intro → sermon → ending
+2. `.panel` “Active package” summarizing the selected clips
+3. `.panel` “Intro” + `.panel` “Ending”: upload form, then `.asset-list` of `.asset` cards (preview `.player.player--asset`, select / clear / delete)
+
+Selected branding is applied automatically when a job finishes. Job detail can rebuild with **Rebuild with current intro & ending**.
 
 ## Job detail
 
@@ -39,7 +47,7 @@ Create stays **on the list page**, not in a drawer.
 
 Active jobs keep `<meta http-equiv="refresh" content="3">`. A small script restores window scroll and keeps `#job-log` pinned to the bottom across refreshes (unless the user scrolled up in the log).
 
-When `status == done` and the output exists, show `.player` pointing at `/jobs/{id}/media` (inline) plus the download button.
+When `status == done` and the output exists, show `.player` pointing at `/jobs/{id}/media` (inline) plus download / rebuild actions. Packaging uses the active intro & ending from `/edit`.
 
 ## New page
 

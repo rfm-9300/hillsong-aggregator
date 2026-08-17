@@ -28,5 +28,17 @@
       localStorage.setItem(KEY, next);
       apply(next);
     });
+
+    document.querySelectorAll('.file__input').forEach((input) => {
+      const label = input.closest('.file')?.querySelector('[data-file-name]');
+      if (!label) return;
+      const sync = () => {
+        const file = input.files && input.files[0];
+        label.textContent = file ? file.name : 'No file chosen';
+        label.classList.toggle('file__name--set', Boolean(file));
+      };
+      input.addEventListener('change', sync);
+      sync();
+    });
   });
 })();
