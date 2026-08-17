@@ -41,6 +41,18 @@ from app.jobs import (
     read_log,
     update_package,
 )
+from app.watch import (
+    add_channel,
+    delete_channel,
+    get_channel as get_watch_channel,
+    init_watch_db,
+    page_context as watch_page_context,
+    poll_all_channels,
+    poll_one_channel,
+    queue_latest,
+    set_enabled,
+    start_monitor,
+)
 from app.progress import build_progress, format_confidence, format_duration
 from app.settings import FIELD_BY_KEY
 from app.settings import apply as apply_settings
@@ -61,7 +73,9 @@ APP_DIR = Path(__file__).resolve().parent
 async def lifespan(_app: FastAPI):
     ensure_dirs()
     init_db()
+    init_watch_db()
     apply_settings()
+    start_monitor()
     yield
 
 
@@ -338,6 +352,110 @@ def repackage_job(job_id: str, _: str = Depends(require_user)):
         daemon=True,
     ).start()
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+
+
+def _watch_page(
+    request: Request,
+    *,
+    error: str | None = None,
+    notice: str | None = None,
+    status_code: int = 200,
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "watch.html",
+        watch_page_context(error=error, notice=notice),
+        status_code=status_code,
+    )
+
+
+@app.get("/watch", response_class=HTMLResponse)
+def watch_page(request: Request, _: str = Depends(require_user)):
+    return _watch_page(request)
+
+
+@app.post("/watch")
+async def watch_add(
+    request: Request,
+    url: str = Form(""),
+    language: str = Form(""),
+    transcript_source: str = Form("auto"),
+    pad_start: float = Form(2.0),
+    pad_end: float = Form(5.0),
+    reencode: bool = Form(False),
+    min_duration: float = Form(180.0),
+    _: str = Depends(require_user),
+):
+    url = url.strip()
+    if not url:
+        return _watch_page(
+            request,
+            error="Paste a YouTube channel URL.",
+            status_code=400,
+        )
+    try:
+        channel = add_channel(
+            url=url,
+            language=language.strip() or None,
+            transcript_source=transcript_source,
+            pad_start=pad_start,
+            pad_end=pad_end,
+            reencode=reencode,
+            min_duration=max(0.0, min_duration),
+        )
+    except ValueError as exc:
+        return _watch_page(request, error=str(exc), status_code=400)
+    except Exception as exc:
+        return _watch_page(request, error=str(exc), status_code=400)
+    return _watch_page(
+        request,
+        notice=(
+            f"Watching {channel.display_title}. "
+            "Existing uploads are noted; new videos will be queued automatically."
+        ),
+    )
+
+
+@app.post("/watch/check")
+def watch_check_all(request: Request, _: str = Depends(require_user)):
+    result = poll_all_channels()
+    if result.errors and not result.queued:
+        return _watch_page(request, error=result.message or result.errors[0])
+    notice = result.message or ""
+    if result.errors:
+        notice = f"{notice} Some channels failed: {result.errors[0]}".strip()
+    return _watch_page(request, notice=notice or None)
+
+
+@app.post("/watch/{channel_id}/check")
+def watch_check_one(request: Request, channel_id: str, _: str = Depends(require_user)):
+    result = poll_one_channel(channel_id)
+    if result.errors and not result.queued:
+        return _watch_page(request, error=result.message or result.errors[0])
+    return _watch_page(request, notice=result.message)
+
+
+@app.post("/watch/{channel_id}/latest")
+def watch_queue_latest(request: Request, channel_id: str, _: str = Depends(require_user)):
+    result = queue_latest(channel_id)
+    if result.errors and not result.queued:
+        return _watch_page(request, error=result.message or result.errors[0])
+    return _watch_page(request, notice=result.message)
+
+
+@app.post("/watch/{channel_id}/toggle")
+def watch_toggle(channel_id: str, _: str = Depends(require_user)):
+    current = get_watch_channel(channel_id)
+    if current is None:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    set_enabled(channel_id, not current.enabled)
+    return RedirectResponse(url="/watch", status_code=303)
+
+
+@app.post("/watch/{channel_id}/delete")
+def watch_delete(channel_id: str, _: str = Depends(require_user)):
+    delete_channel(channel_id)
+    return RedirectResponse(url="/watch", status_code=303)
 
 
 @app.get("/edit", response_class=HTMLResponse)

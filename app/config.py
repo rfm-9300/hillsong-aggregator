@@ -18,6 +18,8 @@ ASSETS_DIR = DATA_DIR / "assets"
 ALLOWED_SUFFIXES = {".mp4", ".mkv", ".mov", ".webm", ".m4v", ".avi"}
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(8 * 1024 * 1024 * 1024)))
 WORKER_POLL_SECONDS = float(os.environ.get("WORKER_POLL_SECONDS", "2"))
+CHANNEL_POLL_SECONDS = float(os.environ.get("CHANNEL_POLL_SECONDS", "900"))
+CHANNEL_RECENT_VIDEOS = int(os.environ.get("CHANNEL_RECENT_VIDEOS", "20"))
 
 
 def dashboard_credentials() -> tuple[str, str]:

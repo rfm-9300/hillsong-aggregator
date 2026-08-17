@@ -13,16 +13,21 @@ Class names as implemented in `app/static/style.css`. Copy these. Strings in exa
       <span class="brand__sub">Sermon extractor</span>
     </span>
   </a>
-  <div class="topbar__actions">
-    <a class="btn btn--ghost btn--sm" href="/">Jobs</a>
-    <a class="btn btn--ghost btn--sm" href="/edit">Edit</a>
-    <a class="btn btn--ghost btn--sm" href="/settings">Settings</a>
-    <button class="iconbtn iconbtn--theme" id="btn-theme" type="button" aria-label="Toggle theme">🌙</button>
-  </div>
+    <div class="topbar__actions">
+      <a class="btn btn--ghost btn--sm" href="/" aria-current="page">Jobs</a>
+      <a class="btn btn--ghost btn--sm" href="/watch">Watch</a>
+      <a class="btn btn--ghost btn--sm" href="/edit">Edit</a>
+      <a class="btn btn--ghost btn--sm" href="/settings">Settings</a>
+      <button class="iconbtn iconbtn--theme" id="btn-theme" type="button" aria-label="Toggle theme">🌙</button>
+    </div>
 </header>
 ```
 
 Theme button **must** keep `id="btn-theme"` — `theme.js` binds to it.
+
+Mark the current page with `aria-current="page"` on the matching topbar link. `.topbar__actions .btn[aria-current="page"]` gives it a surface fill so Jobs / Watch / Edit / Settings stay distinct.
+
+Action rows that may wrap: `.row.row--wrap`.
 
 ## Asset cards (Edit)
 
@@ -51,6 +56,8 @@ Theme button **must** keep `id="btn-theme"` — `theme.js` binds to it.
 - `.btn--danger` — irreversible
 - `.btn--sm` — compact
 - Do not use a raw `<button>` or `.button` without `.btn`
+
+Inline action groups: `.row`. If they may wrap on narrow tables, add `.row--wrap`.
 
 ## View + crumb
 
@@ -109,7 +116,7 @@ Cell helpers: `.name` `.muted` `.mono`.
 
 Jobs list keeps the raw API status in the pill. Job detail uses the friendly labels from `app/progress.py`.
 
-Do not create `.badge` or extra pill colors.
+Pills for watch-channel status: watching → `pill--ok`, paused → `pill` (default), error → `pill--bad`. Job rows from watch still use the job-status map above.
 
 ## Progress (job detail)
 

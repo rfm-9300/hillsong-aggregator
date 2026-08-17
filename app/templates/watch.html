@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Watch — Podcast aggregator{% endblock %}
+{% block content %}
+<div class="view__hero">
+  <h1 class="view__title">Channel watch</h1>
+  <p class="view__desc">Monitor YouTube channels. New uploads are queued as extraction jobs. Checks run about every {{ poll_minutes }} minutes, and you can run one now.</p>
+</div>
+
+{% if notice %}
+<p class="banner banner--ok">{{ notice }}</p>
+{% endif %}
+{% if error %}
+<p class="banner banner--bad">{{ error }}</p>
+{% endif %}
+
+<section class="panel">
+  <div class="panel__head">
+    <h2 class="panel__title">Add a channel</h2>
+  </div>
+  <div class="panel__body">
+    <form class="form" action="/watch" method="post">
+      <div class="form__row">
+        <label class="lbl" for="channel-url">Channel URL</label>
+        <input class="inp" id="channel-url" type="url" name="url" placeholder="https://www.youtube.com/@handle" autocomplete="off" required>
+      </div>
+      <div class="form__row">
+        <label class="lbl" for="watch-transcript">Transcript source</label>
+        <select class="sel" id="watch-transcript" name="transcript_source">
+          <option value="auto" selected>Auto — reuse captions, else Whisper</option>
+          <option value="captions">Captions only — cheapest</option>
+          <option value="whisper">Whisper — ignore captions</option>
+        </select>
+      </div>
+      <div class="form__grid">
+        <div class="form__row">
+          <label class="lbl" for="watch-language">Language</label>
+          <input class="inp" id="watch-language" type="text" name="language" placeholder="pt, en, …" autocomplete="off">
+        </div>
+        <div class="form__row">
+          <label class="lbl" for="watch-min-duration">Skip shorter than (s)</label>
+          <input class="inp inp--mono" id="watch-min-duration" type="number" name="min_duration" value="180" min="0" step="1">
+        </div>
+        <div class="form__row">
+          <label class="lbl" for="watch-pad-start">Pad start (s)</label>
+          <input class="inp inp--mono" id="watch-pad-start" type="number" name="pad_start" value="2" min="0" step="0.5">
+        </div>
+        <div class="form__row">
+          <label class="lbl" for="watch-pad-end">Pad end (s)</label>
+          <input class="inp inp--mono" id="watch-pad-end" type="number" name="pad_end" value="5" min="0" step="0.5">
+        </div>
+      </div>
+      <label class="check">
+        <input type="checkbox" name="reencode" value="true">
+        <span>Re-encode for a frame-accurate cut (slower)</span>
+      </label>
+      <p class="hint">Resolving the channel can take a few seconds. Videos already on the channel are noted and skipped. Only uploads that appear after you add it are queued. Live and upcoming videos wait until they are published. Use Queue latest if you want the current video now.</p>
+      <button class="btn btn--primary" type="submit">Watch channel</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel__head">
+    <h2 class="panel__title">Watching</h2>
+    {% if channels %}
+    <form action="/watch/check" method="post">
+      <button class="btn btn--ghost btn--sm" type="submit">Check now</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if channels %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Channel</th>
+          <th>Last check</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for channel in channels %}
+        <tr>
+          <td>
+            {% if channel.last_error %}
+            <span class="pill pill--bad">error</span>
+            {% elif channel.enabled %}
+            <span class="pill pill--ok">watching</span>
+            {% else %}
+            <span class="pill">paused</span>
+            {% endif %}
+          </td>
+          <td class="name">
+            <a href="{{ channel.url }}" rel="noreferrer noopener" target="_blank">{{ channel.display_title }}</a>
+            {% if channel.last_error %}
+            <p class="hint">{{ channel.last_error }}</p>
+            {% endif %}
+          </td>
+          <td class="muted mono">{{ channel.checked_label }}</td>
+          <td>
+            <div class="row row--wrap">
+              <form action="/watch/{{ channel.id }}/check" method="post">
+                <button class="btn btn--ghost btn--sm" type="submit">Check</button>
+              </form>
+              <form action="/watch/{{ channel.id }}/latest" method="post">
+                <button class="btn btn--ghost btn--sm" type="submit">Queue latest</button>
+              </form>
+              <form action="/watch/{{ channel.id }}/toggle" method="post">
+                <button class="btn btn--ghost btn--sm" type="submit">{{ "Pause" if channel.enabled else "Resume" }}</button>
+              </form>
+              <form action="/watch/{{ channel.id }}/delete" method="post" onsubmit="return confirm('Stop watching this channel?');">
+                <button class="btn btn--danger btn--sm" type="submit">Remove</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <p class="empty__title">No channels yet</p>
+    <p class="empty__desc">Add a YouTube channel to start watching for new sermons.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel__head">
+    <h2 class="panel__title">Queued from watch</h2>
+  </div>
+  {% if discoveries %}
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Title</th>
+          <th>Channel</th>
+          <th>Queued</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in discoveries %}
+        <tr>
+          <td>
+            {% if item.job_status == "done" %}
+            <span class="pill pill--ok">{{ item.job_status }}</span>
+            {% elif item.job_status == "failed" %}
+            <span class="pill pill--bad">{{ item.job_status }}</span>
+            {% elif item.job_status == "running" %}
+            <span class="pill pill--warn">{{ item.job_status }}</span>
+            {% elif item.job_status %}
+            <span class="pill pill--info">{{ item.job_status }}</span>
+            {% else %}
+            <span class="pill">gone</span>
+            {% endif %}
+          </td>
+          <td class="name">
+            {% if item.job_id %}
+            <a href="/jobs/{{ item.job_id }}">{{ item.title }}</a>
+            {% else %}
+            {{ item.title }}
+            {% endif %}
+          </td>
+          <td class="muted">{{ item.channel_title }}</td>
+          <td class="muted mono">{{ item.seen_label }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <p class="empty__title">Nothing queued yet</p>
+    <p class="empty__desc">When a watched channel publishes a new video, it shows up here and on Jobs.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

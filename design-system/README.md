@@ -18,7 +18,7 @@ Same visual system as the WhatsApp-bot dashboards. Agents and LLMs must follow t
 
 | Surface | Files | Stylesheet |
 |---|---|---|
-| Dashboard | `app/templates/` (`base.html`, `index.html`, `job.html`) | `/static/style.css` |
+| Dashboard | `app/templates/` (`base.html`, `index.html`, `watch.html`, `job.html`, `edit.html`, `settings.html`) | `/static/style.css` |
 | CLI | `extract_sermon.py`, `sermon_cut/` | **out of scope** (no web UI) |
 
 Auth is HTTP Basic (browser dialog). There is no HTML login page.

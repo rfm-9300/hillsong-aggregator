@@ -2,16 +2,16 @@
 
 ## Compact shell
 
-Extractor has two pages (jobs list, job detail). Do not add a sidebar.
+Extractor has four pages (jobs list, watch, edit, job detail). Do not add a sidebar.
 
 ```
 body
   header.topbar
     a.brand
-    .topbar__actions  (Jobs, Edit, Settings, #btn-theme)
+    .topbar__actions  (Jobs, Watch, Edit, Settings, #btn-theme)
   main.view
     (crumb on detail)
-    .view__hero (list / edit / settings)
+    .view__hero (list / watch / edit / settings)
     section.panel …
 ```
 
@@ -29,6 +29,16 @@ Head assets in `base.html` (order matters):
 4. `.panel` “Jobs” with `.tbl` or `.empty`
 
 Create stays **on the list page**, not in a drawer.
+
+## Watch channels
+
+1. `.view__hero` explaining automatic queuing
+2. Success/error as `.banner.banner--ok` / `.banner.banner--bad` above the panels
+3. `.panel` “Add a channel” with `.form` (channel URL, transcript source, pads, skip-shorter-than)
+4. `.panel` “Watching” with `.tbl` (status pills: watching `pill--ok`, paused default, error `pill--bad`) or `.empty`. Head includes **Check now**
+5. `.panel` “Queued from watch” listing jobs created from new uploads, same job-status pills as the jobs list
+
+Row actions use `.row.row--wrap` with `.btn.btn--sm` forms (Check, Queue latest, Pause/Resume, Remove).
 
 ## Edit package
 

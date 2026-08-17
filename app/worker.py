@@ -18,6 +18,7 @@ from app.jobs import (
     mark_failed,
     recover_stale_running,
 )
+from app.watch import init_watch_db, start_monitor
 from sermon_cut.media import package_sermon
 from sermon_cut.pipeline import RunConfig, run
 
@@ -121,7 +122,9 @@ def process_job(job) -> None:
 def main() -> None:
     ensure_dirs()
     init_db()
+    init_watch_db()
     apply_settings()
+    start_monitor()
     requeued, interrupted = recover_stale_running()
     if requeued:
         print(f"Requeued {requeued} job(s) left running after a restart")

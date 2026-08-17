@@ -2,6 +2,39 @@
 
 Sermon extractor dashboard and CLI. Web UI follows [`design-system/AGENTS.md`](design-system/AGENTS.md).
 
+## Personal wiki (second brain)
+
+Rodrigo keeps a compiled knowledge wiki at `/Users/rodrigomartins/projects/my-wiki`.
+Canonical protocol: `/Users/rodrigomartins/projects/my-wiki/ops/bootstrap-prompt.md`
+(that file wins if this section drifts).
+
+### Consult before substantial work
+
+1. Read `/Users/rodrigomartins/projects/my-wiki/wiki/index.md` — one line per page.
+2. Open a page only when its index line is clearly relevant. Never bulk-read.
+3. Applicable pages are **binding instructions**, not suggestions.
+
+**This repo — start here when the index line matches the task:**
+
+- `wiki/entities/extractor.md` — this product
+- `wiki/concepts/thebots-design-system.md` — web UI
+- `wiki/notes/project-landscape.md` — VPS map (this app is on `extractor-vps`, not `hillsong-vps`)
+
+### Keep the wiki current
+
+Chat is ephemeral; the wiki is the compounding layer. When this session produces durable
+knowledge (architecture decisions, cross-repo conventions, gotchas, "why we do it this way"):
+
+1. Check the index — update an existing page if one exists; otherwise file a note via
+   `/Users/rodrigomartins/projects/my-wiki/ops/workflows/file-note.md`.
+2. Write with absolute paths under `/Users/rodrigomartins/projects/my-wiki/`. Always bump
+   `wiki/index.md` and append `wiki/log.md`. Never touch `raw/`.
+3. **Do not file:** one-off bugfixes, secrets, deploy credentials, or commands that belong
+   in this `AGENTS.md` (the repo operating manual).
+4. If unsure whether it belongs, tell Rodrigo instead of writing.
+
+When the session cwd is the vault itself, follow that vault's `AGENTS.md`.
+
 ## Deployment Intent
 
 When Rodrigo says any of the following, treat it as permission to execute the full production deployment workflow for this project:
@@ -17,11 +50,14 @@ Use [DEPLOYMENT_RUNBOOK.md](DEPLOYMENT_RUNBOOK.md) as the source of truth.
 
 ## Production Host
 
-- SSH alias: `hillsong-vps`
-- Connect with: `ssh hillsong-vps`
+- SSH alias: `extractor-vps`
+- Host: `172.233.116.75`
+- Connect with: `ssh extractor-vps`
 - Production app directory on the VPS: `~/hillsong-aggregator`
 - Production compose file: `docker-compose.prod.yml`
+- Caddy compose file: `docker-compose.caddy.yml`
 - Production image: `ghcr.io/rfm-9300/hillsong-aggregator:${TAG:-latest}`
+- Public URL: `http://172.233.116.75`
 
 ## Deployment Rules
 

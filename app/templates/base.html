@@ -21,9 +21,10 @@
       </span>
     </a>
     <div class="topbar__actions">
-      <a class="btn btn--ghost btn--sm" href="/">Jobs</a>
-      <a class="btn btn--ghost btn--sm" href="/edit">Edit</a>
-      <a class="btn btn--ghost btn--sm" href="/settings">Settings</a>
+      <a class="btn btn--ghost btn--sm" href="/" {% if request.url.path == "/" %}aria-current="page"{% endif %}>Jobs</a>
+      <a class="btn btn--ghost btn--sm" href="/watch" {% if request.url.path.startswith("/watch") %}aria-current="page"{% endif %}>Watch</a>
+      <a class="btn btn--ghost btn--sm" href="/edit" {% if request.url.path.startswith("/edit") %}aria-current="page"{% endif %}>Edit</a>
+      <a class="btn btn--ghost btn--sm" href="/settings" {% if request.url.path.startswith("/settings") %}aria-current="page"{% endif %}>Settings</a>
       <button class="iconbtn iconbtn--theme" id="btn-theme" type="button" aria-label="Toggle theme">🌙</button>
     </div>
   </header>

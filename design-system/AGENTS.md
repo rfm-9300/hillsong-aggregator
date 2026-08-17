@@ -1,5 +1,9 @@
 # UI Design System — agent rules
 
+Parent repo `AGENTS.md` has the personal-wiki section. This file is UI-only; still read
+`/Users/rodrigomartins/projects/my-wiki/wiki/index.md` before substantial design work
+(`wiki/concepts/thebots-design-system.md`).
+
 Follow these rules for any change under `app/templates/` or `app/static/`.
 
 ## Must

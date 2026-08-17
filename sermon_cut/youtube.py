@@ -11,12 +11,29 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 from sermon_cut.captions import parse_vtt
 from sermon_cut.transcript import Transcript
 
 URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 SKIP_SUFFIXES = {".part", ".ytdl", ".vtt", ".srt", ".json", ".jpg", ".webp", ".png"}
+CHANNEL_PATH_RE = re.compile(
+    r"^/(?:@[\w.-]+|channel/UC[\w-]+|c/[\w.-]+|user/[\w.-]+)(?:/.*)?$",
+    re.IGNORECASE,
+)
+CHANNEL_ROOT_RE = re.compile(
+    r"^(/@[\w.-]+|/channel/UC[\w-]+|/c/[\w.-]+|/user/[\w.-]+)",
+    re.IGNORECASE,
+)
+VIDEO_PATH_RE = re.compile(
+    r"youtu\.be/|youtube\.com/(?:watch|shorts|embed|live)\b",
+    re.IGNORECASE,
+)
+CHANNEL_TAB_RE = re.compile(
+    r"^/(videos|shorts|streams|live|releases|playlists)$",
+    re.IGNORECASE,
+)
 
 
 class DownloadError(RuntimeError):
@@ -25,6 +42,36 @@ class DownloadError(RuntimeError):
 
 def is_url(value: object) -> bool:
     return bool(URL_RE.match(str(value).strip()))
+
+
+def is_channel_url(value: object) -> bool:
+    raw = str(value).strip()
+    if not URL_RE.match(raw) or VIDEO_PATH_RE.search(raw):
+        return False
+    host = (urlparse(raw).hostname or "").lower()
+    if host not in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+        return False
+    return bool(CHANNEL_PATH_RE.match(urlparse(raw).path or ""))
+
+
+def watch_url(video_id: str) -> str:
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
+def normalize_channel_url(url: str) -> str:
+    """Point a channel link at the uploads tab unless a tab is already specified."""
+    parsed = urlparse(url.strip())
+    path = (parsed.path or "").rstrip("/")
+    root_match = CHANNEL_ROOT_RE.match(path)
+    if not root_match:
+        return url.strip()
+    root = root_match.group(1)
+    remainder = path[len(root) :]
+    if CHANNEL_TAB_RE.match(remainder):
+        normalized = root + remainder
+    else:
+        normalized = f"{root}/videos"
+    return urlunparse(parsed._replace(path=normalized, query="", fragment=""))
 
 
 @dataclass
@@ -50,6 +97,98 @@ class RemoteVideo:
     @property
     def has_captions(self) -> bool:
         return bool(self.manual_langs or self.auto_langs)
+
+
+@dataclass
+class ChannelVideo:
+    id: str
+    title: str
+    url: str
+    duration: float | None
+    live_status: str | None
+
+    @property
+    def is_pending_live(self) -> bool:
+        return (self.live_status or "") in {"is_live", "is_upcoming", "post_live"}
+
+
+@dataclass
+class ChannelSnapshot:
+    url: str
+    channel_id: str
+    title: str
+    videos: list[ChannelVideo] = field(default_factory=list)
+
+
+def probe_channel(url: str, *, recent: int = 20) -> ChannelSnapshot:
+    """Resolve a channel URL and list the newest uploads without downloading."""
+    if not is_channel_url(url):
+        raise DownloadError(
+            "Paste a channel URL such as https://www.youtube.com/@handle, not a video link."
+        )
+    target = normalize_channel_url(url)
+    raw = _capture(
+        [
+            "--flat-playlist",
+            "--dump-single-json",
+            "--playlist-end",
+            str(max(1, recent)),
+            "--ignore-no-formats-error",
+            target,
+        ],
+        allow_playlist=True,
+        timeout=90,
+    )
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise DownloadError(f"yt-dlp returned unreadable channel metadata: {exc}") from exc
+
+    entries = [entry for entry in (data.get("entries") or []) if isinstance(entry, dict)]
+    if data.get("_type") != "playlist" and not entries:
+        raise DownloadError(
+            "That looks like a video, not a channel. Paste https://www.youtube.com/@handle"
+        )
+
+    channel_id = ""
+    for key in ("channel_id", "uploader_id", "id"):
+        value = str(data.get(key) or "").strip()
+        if value.startswith("UC"):
+            channel_id = value
+            break
+        if value and not channel_id:
+            channel_id = value
+    title = str(
+        data.get("channel") or data.get("uploader") or data.get("title") or ""
+    ).strip()
+    videos: list[ChannelVideo] = []
+    seen: set[str] = set()
+    for entry in entries:
+        if entry.get("_type") == "playlist":
+            continue
+        video_id = str(entry.get("id") or "").strip()
+        if not video_id or video_id in seen:
+            continue
+        seen.add(video_id)
+        duration = entry.get("duration")
+        videos.append(
+            ChannelVideo(
+                id=video_id,
+                title=str(entry.get("title") or "").strip() or video_id,
+                url=watch_url(video_id),
+                duration=float(duration) if duration else None,
+                live_status=(str(entry["live_status"]) if entry.get("live_status") else None),
+            )
+        )
+
+    if not channel_id and not title:
+        raise DownloadError("Could not read that YouTube channel.")
+    return ChannelSnapshot(
+        url=target,
+        channel_id=channel_id,
+        title=title or channel_id or target,
+        videos=videos,
+    )
 
 
 def probe_video(url: str) -> RemoteVideo:
@@ -183,7 +322,7 @@ def _first_match(codes: list[str], wanted: str) -> str | None:
     return None
 
 
-def _ytdlp_command() -> list[str]:
+def _ytdlp_command(*, allow_playlist: bool = False) -> list[str]:
     exe = shutil.which("yt-dlp")
     if exe:
         base = [exe]
@@ -192,7 +331,11 @@ def _ytdlp_command() -> list[str]:
     else:
         raise DownloadError("yt-dlp is not installed. Install it with: pip install yt-dlp")
 
-    base += ["--no-color", "--no-playlist", "--newline"]
+    base += ["--no-color", "--newline"]
+    if allow_playlist:
+        base.append("--yes-playlist")
+    else:
+        base.append("--no-playlist")
     cookies = os.environ.get("YTDLP_COOKIES_FILE", "").strip()
     if cookies:
         base += ["--cookies", cookies]
@@ -205,12 +348,21 @@ def _ytdlp_command() -> list[str]:
     return base
 
 
-def _capture(args: list[str]) -> str:
-    proc = subprocess.run(
-        _ytdlp_command() + args,
-        capture_output=True,
-        text=True,
-    )
+def _capture(
+    args: list[str],
+    *,
+    allow_playlist: bool = False,
+    timeout: float | None = None,
+) -> str:
+    try:
+        proc = subprocess.run(
+            _ytdlp_command(allow_playlist=allow_playlist) + args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise DownloadError("yt-dlp timed out while reading the channel.") from exc
     if proc.returncode != 0:
         raise DownloadError(_tidy_error(proc.stderr or proc.stdout))
     return proc.stdout

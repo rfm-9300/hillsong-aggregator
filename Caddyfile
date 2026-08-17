@@ -1,0 +1,6 @@
+:80 {
+	request_body {
+		max_size 4GB
+	}
+	reverse_proxy hillsong-aggregator-web-1:8000
+}
